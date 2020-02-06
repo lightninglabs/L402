@@ -1,2 +1,2 @@
-# Authentication flow
+# High-level authentication flow
 
