@@ -11,51 +11,57 @@ participant "Auth server  " as auth
 participant "Auth server lnd  " as alnd #cccccc
 participant "Protected resource   " as res #ff6666
 
-activate client
-client -> auth: GET /protected
-activate auth
+group First time user
 
-auth -> auth: Check token,\nno token found
+    activate client
+    client -> auth: GET /protected
+    activate auth
+    
+    auth -> auth: Check token,\nno token found
+    
+    auth -> alnd: Generate invoice
+    activate alnd
+    
+    alnd --> auth: Invoice
+    deactivate alnd
+    
+    auth -> auth: Create token \n+ invoice
+    
+    auth --> client: 402: Payment Required,\ntoken + invoice
+    deactivate auth
+    
+    client -> clnd: Pay invoice
+    activate clnd
+    
+    clnd -> alnd: Pay invoice
+    activate alnd
+    
+    alnd --> clnd: Preimage
+    deactivate alnd
+    
+    clnd --> client: Preimage
+    deactivate clnd
+    
+    client -> client: Add preimage to      \ntoken
+end
 
-auth -> alnd: Generate invoice
-activate alnd
+group User with a token
 
-alnd --> auth: Invoice
-deactivate alnd
-
-auth -> auth: Create token \n+ invoice
-
-auth --> client: 402: Payment Required,\ntoken + invoice
-deactivate auth
-
-client -> clnd: Pay invoice
-activate clnd
-
-clnd -> alnd: Pay invoice
-activate alnd
-
-alnd --> clnd: Preimage
-deactivate alnd
-
-clnd --> client: Preimage
-deactivate clnd
-
-client -> client: Add preimage to      \ntoken
-
-client -> auth: GET /protected,\ntoken + preimage
-activate auth
-
-auth -> auth: Check token,\nvalidate payment
-
-auth -> res: GET /protected
-activate res
-
-res --> auth: Protected content
-deactivate res
-
-auth --> client: Protected content
-deactivate auth
-
-deactivate client
+    client -> auth: GET /protected,\ntoken + preimage
+    activate auth
+    
+    auth -> auth: Check token,\nvalidate payment
+    
+    auth -> res: GET /protected
+    activate res
+    
+    res --> auth: Protected content
+    deactivate res
+    
+    auth --> client: Protected content
+    deactivate auth
+    
+    deactivate client
+end
 
 @enduml
