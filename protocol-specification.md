@@ -11,11 +11,12 @@ LSAT, please [see this chapter](introduction.md).
 ## Specification
 
 This section defines the "LSAT" authentication scheme, which transmits
-credentials as `<macaroon>:<preimage>` pairs, where the preimage and
-the macaroon are each encoded as base64. This scheme is not considered to be a
-secure method of user authentication unless used in conjunction with some
-external secure system such as TLS, as the macaroon and preimage are passed over
-the network as cleartext.
+credentials as `<macaroon(s)>:<preimage>` pairs, where the preimage and
+the macaroon are each encoded as base64. Multiple macaroons are base64 encoded
+individually and listed comma separated before the column.  
+This scheme is not considered to be a secure method of user authentication
+unless used in conjunction with some external secure system such as TLS, as the
+macaroon and preimage are passed over the network as cleartext.
 
 The LSAT authentication scheme is based on the model that the client needs to
 authenticate itself with a macaroon and invoice preimage for each backend
@@ -25,14 +26,14 @@ validate the macaroon and preimage for the particular backend service requested.
 The LSAT authentication scheme utilizes the Authentication Framework specified
 in [*RFC 7235*](https://tools.ietf.org/html/rfc7235) as follows.
 
-In challenges: the scheme name is "LSAT". Note that the scheme name is case-
-insensitive. For credentials, the syntax is:
+In challenges: the scheme name is "LSAT". Note that the scheme name is
+case-insensitive. For credentials, the syntax is:
 
 
-`macaroon` → [*&lt;base64 encoding&gt;*](https://tools.ietf.org/html/rfc3548#section-3),
+`macaroons` → [*&lt;base64 encoding&gt;*](https://tools.ietf.org/html/rfc3548#section-3),
 comma separated if multiple macaroons are present    
-`preimage` → [*&lt;base64 encoding&gt;*](https://tools.ietf.org/html/rfc3548#section-3)  
-`token`    → macaroon ":" preimage
+`preimage`  → [*&lt;base64 encoding&gt;*](https://tools.ietf.org/html/rfc3548#section-3)  
+`token`     → macaroons ":" preimage
 
 
 Specifically, the syntax for "token" specified above is used, which can be
@@ -56,9 +57,10 @@ which verifies all macaroons for all backend services.
 
 ### Security Considerations
 
-If a client’s LSAT is intercepted by Mallory, which possible if the transmission
-is not encrypted in some way such as TLS, the LSAT can be used by Mallory and
-the LSAT proxy would not be able to distinguish this usage as illicit.
+If a client’s LSAT is intercepted by Mallory, which is possible if the
+transmission is not encrypted in some way such as TLS, the LSAT can be used by
+Mallory and the LSAT proxy would not be able to distinguish this usage as
+illicit.
 
 LSAT authentication is also vulnerable to spoofing by counterfeit servers. If a
 client slightly mistypes the URL of a desired backend service, they become
@@ -213,6 +215,6 @@ would use the following header field:
 Authorization: LSAT AGIAJEemVQUTEyNCR0exk7ek90Cg==:MTIzNDEyMzQxMjM0
 ```
 
-Note this is the same as the HTTP specification.Other gRPC headers and trailers
+Note this is the same as the HTTP specification. Other gRPC headers and trailers
 are required; more information can be found in the
 [*gRPC over HTTP2 specification*](https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md).
