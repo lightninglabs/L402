@@ -31,4 +31,4 @@ load balancing level for all our services.
 * [Macaroons: Cookies with Contextual Caveats](https://research.google/pubs/pub41892/)
   the 2014 paper published on Google Scholar.
 * [HTTP/1.1 RFC, Section 6.5.2: 402 Payment Required](https://tools.ietf.org/html/rfc7231#section-6.5.2)
-* 
+* [Proposal for OAuth style delegated authentication using LSATs](https://github.com/lightningnetwork/lnd/issues/288)
