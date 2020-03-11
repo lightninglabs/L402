@@ -17,6 +17,7 @@ load balancing level for all our services.
 * [Introduction](introduction.md)
 * [Authentication flow](authentication-flow.md)
 * [Protocol specification](protocol-specification.md)
+* [Macaroons](macaroons.md)
 
 ## Implementations
 
