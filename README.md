@@ -1,4 +1,4 @@
-# LSAT
+# LSAT: Lightning Service Authentication Token
 
 In this document, we outline the design for a Lightning Service Authentication Token \(LSAT\) for future services created by Lightning Labs. The high level idea is that before a user can interact with any of our paid services, they need to first obtain an authentication token. In order to obtain a token, we require the user to pay us over Lightning in order to obtain a pre-image, which itself is the token.
 
