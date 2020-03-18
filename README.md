@@ -11,7 +11,7 @@ The implementation of the authentication token is chosen to be macaroons, as the
 
 ## Implementations
 
-* [Kirin: A gRPC/HTTP authentication reverse proxy using LSATs](https://github.com/lightninglabs/kirin)
+* [Aperture: A gRPC/HTTP authentication reverse proxy using LSATs](https://github.com/lightninglabs/aperture)
 * [lsat-js: A utility library for working with LSATs](https://github.com/Tierion/lsat-js)
 
 ## External links / References
