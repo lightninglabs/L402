@@ -6,7 +6,7 @@ In this chapter, we outline the specification for the abstract LSAT HTTP and gRP
 
 ## Specification
 
-This section defines the "LSAT" authentication scheme, which transmits credentials as `<macaroon(s)>:<preimage>` pairs, where the preimage and the macaroon are each encoded as base64. Multiple macaroons are base64 encoded individually and listed comma separated before the column.  
+This section defines the "LSAT" authentication scheme, which transmits credentials as `<macaroon(s)>:<preimage>` pairs, where the preimage is encoded as hex and the macaroon is encoded as base64. Multiple macaroons are base64 encoded individually and listed comma separated before the column.  
 This scheme is not considered to be a secure method of user authentication unless used in conjunction with some external secure system such as TLS, as the macaroon and preimage are passed over the network as cleartext.
 
 The LSAT authentication scheme is based on the model that the client needs to authenticate itself with a macaroon and invoice preimage for each backend service it wants to access. The server will service the request only if it can validate the macaroon and preimage for the particular backend service requested.
@@ -16,7 +16,7 @@ The LSAT authentication scheme utilizes the Authentication Framework specified i
 In challenges: the scheme name is "LSAT". Note that the scheme name is case-insensitive. For credentials, the syntax is:
 
 `macaroons` → [_&lt;base64 encoding&gt;_](https://tools.ietf.org/html/rfc3548#section-3), comma separated if multiple macaroons are present  
-`preimage` → [_&lt;base64 encoding&gt;_](https://tools.ietf.org/html/rfc3548#section-3)  
+`preimage` → [_&lt;hex encoding&gt;_](https://tools.ietf.org/html/rfc3548#section-6)  
 `token` → macaroons ":" preimage
 
 Specifically, the syntax for "token" specified above is used, which can be considered comparable to the [_"token68" syntax_](https://tools.ietf.org/html/rfc7235#section-2.1) used for HTTP basic auth.
@@ -58,19 +58,19 @@ In other words, to receive authorization, the client:
 1. Pays the invoice from the server, thus revealing the invoice’s preimage
 2. Constructs the LSAT by concatenating the base64-encoded macaroon\(s\), a single
 
-   colon \(":"\), and the base64-encoded preimage.
+   colon \(":"\), and the hex-encoded preimage.
 
-Since the macaroon and the preimage are both base64-encoded binary data, there should be no problem with either containing control characters or colons \(see "CTL" in [_Appendix B.1 of \[RFC5234\]_](https://tools.ietf.org/html/rfc5234#appendix-B.1)\). If a user provides a macaroon or preimage containing any of these characters, this is to be considered an invalid LSAT and should result in a 402 and authentication information as specified above.
+Since the macaroon and the preimage are both binary data encoded in an ASCII based format, there should be no problem with either containing control characters or colons \(see "CTL" in [_Appendix B.1 of \[RFC5234\]_](https://tools.ietf.org/html/rfc5234#appendix-B.1)\). If a user provides a macaroon or preimage containing any of these characters, this is to be considered an invalid LSAT and should result in a 402 and authentication information as specified above.
 
-If a client wishes to send the macaroon `"AGIAJEemVQUTEyNCR0exk7ek90Cg=="` \(already base64-encoded by the server\) and the preimage `"123412341234"`, they would use the following header field:
+If a client wishes to send the macaroon `"AGIAJEemVQUTEyNCR0exk7ek90Cg=="` \(already base64-encoded by the server\) and the preimage `"1234abcd1234abcd1234abcd"` \(already hex encoded by the payee's Lightning node\), they would use the following header field:
 
 ```text
-Authorization: LSAT AGIAJEemVQUTEyNCR0exk7ek90Cg==:MTIzNDEyMzQxMjM0
+Authorization: LSAT AGIAJEemVQUTEyNCR0exk7ek90Cg==:1234abcd1234abcd1234abcd
 ```
 
 ## gRPC Protocol Specification
 
-This section defines the "LSAT" gRPC authentication scheme, which, similarly to the HTTP version, transmits credentials as `<macaroon>:<preimage>` pairs where each field is encoded as base64. As above, this scheme is not considered to be a secure method of user authentication unless used in conjunction with some external secure system such as TLS, as the macaroon and preimage are passed over the network as cleartext.
+This section defines the "LSAT" gRPC authentication scheme, which, similarly to the HTTP version, transmits credentials as `<macaroon(s)>:<preimage>` pairs where the preimage is encoded as hex and the macaroon is encoded as base64. Multiple macaroons are base64 encoded individually and listed comma separated before the column. As above, this scheme is not considered to be a secure method of user authentication unless used in conjunction with some external secure system such as TLS, as the macaroon and preimage are passed over the network as cleartext.
 
 The LSAT proxy will determine whether an incoming HTTP request is gRPC by checking whether the Content-Type header begins with application/grpc, therefore gRPC clients must set this header in all requests.
 
@@ -129,12 +129,12 @@ Grpc-Status-Details-Bin: CJIDEgxtaXNzaW5nIExTQVQaeQ…
 
 Where `"CJIDEgxtaXNzaW5nIExTQVQaeQ…"` is the serialized gRPC status proto.
 
-Once the client has deserialized the proto and extracted the macaroon and invoice, they may pay the invoice and construct the LSAT identically to the HTTP specification, i.e. by concatenating the base64-encoded macaroon, a single colon \(":"\), and the base64-encoded preimage.
+Once the client has deserialized the proto and extracted the macaroon and invoice, they may pay the invoice and construct the LSAT identically to the HTTP specification, i.e. by concatenating the base64-encoded macaroon, a single colon \(":"\), and the hex-encoded preimage.
 
-If a client wishes to send the macaroon `"AGIAJEemVQUTEyNCR0exk7ek90Cg=="` \(already base64-encoded by the server\) and the preimage `"123412341234"`, they would use the following header field:
+If a client wishes to send the macaroon `"AGIAJEemVQUTEyNCR0exk7ek90Cg=="` \(already base64-encoded by the server\) and the preimage `"1234abcd1234abcd1234abcd"` \(already hex encoded by the payee's Lightning node\), they would use the following header field:
 
 ```text
-Authorization: LSAT AGIAJEemVQUTEyNCR0exk7ek90Cg==:MTIzNDEyMzQxMjM0
+Authorization: LSAT AGIAJEemVQUTEyNCR0exk7ek90Cg==:1234abcd1234abcd1234abcd
 ```
 
 Note this is the same as the HTTP specification. Other gRPC headers and trailers are required; more information can be found in the [_gRPC over HTTP2 specification_](https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md).
