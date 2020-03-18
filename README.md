@@ -6,8 +6,8 @@ The implementation of the authentication token is chosen to be macaroons, as the
 
 * [Introduction](introduction.md)
 * [Authentication flow](authentication-flow.md)
-* [Protocol specification](protocol-specification.md)
-* [Macaroons](macaroons.md)
+* [Protocol Specification](protocol-specification.md)
+* [Macaroon Minting & Verification](macaroons.md)
 
 ## Implementations
 
