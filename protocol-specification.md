@@ -76,7 +76,7 @@ The LSAT proxy will determine whether an incoming HTTP request is gRPC by checki
 
 Note that the LSAT proxy must be HTTP/2 compatible to accommodate requests for gRPC backend services, since the gRPC client expects to be talking to a server that "speaks" HTTP/2.
 
-Upon receipt of a request for a URI of an LSAT-proxied backend service that lacks LSAT credentials,, the server should reply with a challenge encoded in the grpc-status-details-bin HTTP header as a serialized gRPC Status proto message, to be deserialized on the client side. Once deserialized, the proto will look roughly like this object:
+Upon receipt of a request for a URI of an LSAT-proxied backend service that lacks LSAT credentials, the server should reply with a challenge encoded in the grpc-status-details-bin HTTP header as a serialized gRPC Status proto message, to be deserialized on the client side. Once deserialized, the proto will look roughly like this object:
 
 ```javascript
 {

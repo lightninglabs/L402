@@ -4,8 +4,9 @@ This chapter explains the high-level authentication flow from the perspective of
 
 The requirements from the user's point of view are simple: They want to be able to use a service as frictionless as possible. They are perhaps used to the concept of needing to obtain an API access key first in order to use a service, but do not necessarily want to register an account with their personal information to do so.
 
-A service using the LSAT protocol supports exactly that requirement: The use of an API key without the need for creating an account first. And because no information needs to be input, the process of obtaining the API key can happen transparent to the user, in the background.  
-Whenever an LSAT compatible client software connects to a server that uses the protocol, it receives a prompt to pay an invoice over a very small amount \(a few satoshis\). Once the client software pays that invoice \(which can happen automatically if the amount does not exceed a user-defined threshold\), a valid API key or authentication token can be constructed. That token is stored by the client's software and will be used for all future requests.
+A service using the LSAT protocol supports exactly that requirement: The use of an API key without the need for creating an account first. And because no information needs to be input, the process of obtaining the API key can happen transparently to the user, in the background. 
+
+Whenever an LSAT-compatible client software connects to a server that uses the protocol, it receives a prompt to pay an invoice over a very small amount \(a few satoshis\). Once the client software pays that invoice \(which can happen automatically if the amount does not exceed a user-defined threshold\), a valid API key or authentication token can be constructed. That token is stored by the client's software and will be used for all future requests.
 
 ## Detailed authentication flow
 
@@ -21,17 +22,17 @@ As an example, we will look at the `loopd` client that wants to do a loop out sw
 2. The `loopd` client program contacts the loop server to initiate the swap.
 3. The call from the client must always go through the authentication server
 
-   reverse proxy, which in this example is `kirin`. The authentication proxy
+   reverse proxy, which in this example is `aperture`. The authentication proxy
 
    notices that the client didn't send an LSAT and therefore cannot be granted
 
    access to the loop server.
 
-4. `kirin` instructs its own `lnd` instance to create an invoice over a small
+4. `aperture` instructs its own `lnd` instance to create an invoice over a small
 
    amount that is required to acquire a fresh token.
 
-5. In addition to the invoice, `kirin` also creates a fresh access token that is
+5. In addition to the invoice, `aperture` also creates a fresh access token that is
 
    tied to the invoice. The token is cryptographically constructed in a way that
 
