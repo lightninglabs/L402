@@ -13,6 +13,7 @@ The implementation of the authentication token is chosen to be macaroons, as the
 
 * [Aperture: A gRPC/HTTP authentication reverse proxy using LSATs](https://github.com/lightninglabs/aperture)
 * [lsat-js: A utility library for working with LSATs](https://github.com/Tierion/lsat-js)
+* [boltwall: Nodejs middleware-based authentication using LSATs](https://github.com/tierion/boltwall)
 
 ## External links / References
 
