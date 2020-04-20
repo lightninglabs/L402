@@ -78,7 +78,7 @@ As an example, we will look at the `loopd` client that wants to do a loop out sw
 
     successive loop will use the same token and will not be delayed at all.
 
-![e2e flow sequence diagram](.gitbook/assets/e2e-flow.png)
+![e2e flow sequence diagram](plantuml/e2e-flow.png)
 
 **All further loops**:
 
