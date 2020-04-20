@@ -14,7 +14,7 @@ However, several decades later, we _do_ have a widely used digital cash system: 
 
 ## Authentication and API Payments in a Lightning-Native Web
 
-Lightning has the potential to serve as the de-facto payment method to access services and resources on the web. In this new web, rather than a user being tracked across the web with invisible pixels to serve invasive adds, or users needing to give away their emails subjecting themselves to a lifetime of spam and tracking, what if a user was able to _pay_ for a service and in the process obtain a ticket/receipt which can be used for future authentication and access?
+Lightning has the potential to serve as the de-facto payment method to access services and resources on the web. In this new web, rather than a user being tracked across the web with invisible pixels to serve invasive ads, or users needing to give away their emails subjecting themselves to a lifetime of spam and tracking, what if a user was able to _pay_ for a service and in the process obtain a ticket/receipt which can be used for future authentication and access?
 
 In this new web, email addresses and passwords are a thing of the past. Instead _cryptographic bearer credentials_ are purchased and presented by users to access services and resources. In this new web, credit cards no longer serve as a gatekeeper to all the amazing experiences that have been created. LSATs enable the creation of a new more global, more private, more developer friendly web.
 
