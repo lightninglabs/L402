@@ -14,7 +14,9 @@ Each macaroon must have its own cryptographically random root key that must not 
 
 The key mapping to the secret is the SHA-256 hash of the macaroon’s public identifier, which contains static information about the macaroon itself. In the initial construction, the public identifier should include the following in the listed order:
 
-* **Version** - A version allows for an iterative macaroon design.
+> Note: All data specified here are encoded in big-endian unless otherwise stated.
+
+* **Version** - A version allows for an iterative macaroon design. It must be encoded in 2 bytes unsigned integer.
 * **Payment Hash** - A payment hash links an invoice’s payment request to the macaroon. Once the payment request is fulfilled, the payer receives its corresponding preimage as proof of payment. This proof can then be provided along with the macaroon to ensure an LSAT has been paid for without checking whether the invoice has been fulfilled.
 * **User Identifier** - A unique user identifier allows services to track users across distinct macaroons serving useful in the context of service level metering. A user identifier of 32 random bytes is used instead of the macaroon’s identifier because the latter can be revoked, e.g., in the case of a service tier upgrade.
 
