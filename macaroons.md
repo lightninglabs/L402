@@ -2,7 +2,7 @@
 
 ## Overview
 
-In this chapter, we outline the specification of the Macaroon component of a Lightning API Credential \(L402\). To recap, an L402 is composed of a Macaroon, which specifies the allowed capabilities of the credential, and a preimage, which serves as the credential’s proof of payment. Macaroons are perfect candidates for L402 as they are tamper-proof, support easy rotation, have attributes, and can even be further attenuated in order for applications that integrate an L402 enabled service to delegate any additional capabilities. We’ll cover how Macaroons are created, attenuated, and verified as part of L402. This chapter will require an understanding of how Macaroons work and how they are useful in the context of authentication. It may be useful to skim the [introductory research paper on Macaroons](https://research.google/pubs/pub41892/).
+In this chapter, we outline the specification of the Macaroon component of a Lightning API key \(L402\). To recap, an L402 is composed of a Macaroon, which specifies the allowed capabilities of the credential, and a preimage, which serves as the credential’s proof of payment. Macaroons are perfect candidates for L402 as they are tamper-proof, support easy rotation, have attributes, and can even be further attenuated in order for applications that integrate an L402 enabled service to delegate any additional capabilities. We’ll cover how Macaroons are created, attenuated, and verified as part of L402. This chapter will require an understanding of how Macaroons work and how they are useful in the context of authentication. It may be useful to skim the [introductory research paper on Macaroons](https://research.google/pubs/pub41892/).
 
 ## Minting Macaroons
 

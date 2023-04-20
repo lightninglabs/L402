@@ -1,4 +1,4 @@
-# L402: Lightning API Credentials
+# L402: Lightning API Keys
 
 L402 is a standard to support the use case of charging for services and authenticating users in distributed networks. Developed by [Lightning Labs](https://lightning.engineering/), it combines the strengths of Macaroons, for better authentication, and the strengths of the Lightning Network, for better payments. L402 API credentials invigorate the HTTP error code _402 Payment Required_ by combining the fine-grained authentication capabilities of Macaroons with Lightning Network payments, making it easy to charge amounts of any size for an API request, web page or resource.
 
