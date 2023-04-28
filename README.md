@@ -4,7 +4,7 @@ L402 is a standard to support the use case of charging for services and authenti
 
 This repository outlines the open source design for L402, formerly published under the name LSAT. We welcome contributions to this repository.
 
-An L402 is created like a [Macaroon]](macaroons.md). It combines the advantages of bearer and identity-based authentication systems that can quickly be issued and verified without requiring access to a central database.
+An L402 is created like a [Macaroon](macaroons.md). It combines the advantages of bearer and identity-based authentication systems that can quickly be issued and verified without requiring access to a central database.
 
 In addition to a regular Macaroon, an L402 includes a payment hash, which is presented to the user with a Lightning Network invoice. The user can prove their successful payment if the preimage matches the payment hash.
 
