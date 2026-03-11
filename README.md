@@ -17,8 +17,8 @@ authentication tokens with Lightning Network micropayments.
 5. The server verifies the credential and serves the resource.
 
 The token cryptographically commits to the payment hash of the invoice, so the
-server can verify payment using only the token and preimage — no database
-lookups or session state required.
+server can verify payment using only the token and preimage. No database lookups
+or session state required.
 
 ```
 WWW-Authenticate: L402 version="0", token="<base64>", invoice="<bolt11>"
@@ -40,59 +40,49 @@ create a weaker version of their credential to share with others, restricting
 access to specific services, capabilities, or usage limits.
 
 **Stateless verification.** Servers verify credentials using only the token and
-preimage — no centralized database needed. This makes L402 naturally suited for
+preimage, no centralized database needed. This makes L402 a natural fit for
 distributed systems and microservice architectures.
 
 ## Agents and Agentic Commerce
 
-L402 is uniquely suited for the emerging world of AI agents and autonomous
-software that needs to discover, evaluate, and pay for services without human
-intervention. Because L402 credentials are:
+L402 is a natural fit for AI agents and autonomous software that need to
+discover, evaluate, and pay for services without human intervention. The
+credentials are machine-readable (structured HTTP headers), self-contained (no
+out-of-band registration or OAuth flows), and instantly obtainable (pay an
+invoice, get a credential, all in one HTTP round-trip). Agents can also delegate
+scoped sub-credentials to other agents via caveat attenuation.
 
-- **Machine-readable** — structured headers that any HTTP client can parse
-- **Self-contained** — no out-of-band registration or OAuth flows needed
-- **Instantly obtainable** — pay an invoice, get a credential, all in one
-  HTTP round-trip
-- **Programmatically attenuable** — agents can delegate scoped sub-credentials
-  to other agents
-
-...they provide the ideal authentication and payment primitive for agent-to-agent
-and agent-to-service interactions. An AI agent can autonomously discover an API,
-pay for access with Lightning, and immediately start making authenticated
-requests — all without a human in the loop.
-
-This makes L402 a foundational building block for agentic commerce: a world
-where software agents transact with services and each other using real money
-over open payment rails.
+In practice, an AI agent can autonomously discover an API, pay for access with
+Lightning, and immediately start making authenticated requests, all without a
+human in the loop. As agents increasingly transact with services (and each
+other) using real money, L402 provides the payment+authentication layer to make
+that work over open payment rails.
 
 ## Token Format
 
-L402 is token-format agnostic — any token that commits to a payment hash works.
+L402 is token-format agnostic: any token that commits to a payment hash works.
 [Macaroons](macaroons.md) (HMAC-chain bearer credentials) are the recommended
-format because they support:
-
-- Delegation and attenuation through caveats
-- Stateless verification via HMAC chains
-- Service-level access control and tier encoding
-
-See the [Macaroon Minting & Verification](macaroons.md) chapter for the full
-specification.
+format because they support delegation and attenuation through caveats, stateless
+verification via HMAC chains, and service-level access control with tier
+encoding. See the [Macaroon Minting & Verification](macaroons.md) chapter and
+the [Macaroon Technical Specification](macaroon-spec.md) for the full details.
 
 ## What's New
 
-This revision of the L402 specification introduces several key updates aligned
-with [bLIP-0026](https://github.com/lightning/blips/blob/master/blip-0026.md):
+This revision of the L402 specification aligns with
+[bLIP-0026](https://github.com/lightning/blips/blob/master/blip-0026.md) and
+includes the following updates:
 
-- **Token generalization** — The protocol is now token-format agnostic. The
+- **Token generalization.** The protocol is now token-format agnostic. The
   `WWW-Authenticate` header uses `token=` instead of the former `macaroon=`.
   Macaroons remain the recommended format.
-- **Version system** — A `version="0"` parameter is now included in the
+- **Version system.** A `version="0"` parameter is now included in the
   `WWW-Authenticate` challenge header, enabling future protocol evolution.
-- **Backwards compatibility** — Explicit rules for accepting both `L402`/`LSAT`
+- **Backwards compatibility.** Explicit rules for accepting both `L402`/`LSAT`
   scheme names and `token=`/`macaroon=` parameter names.
-- **Enhanced security guidance** — Expanded security considerations covering
-  caveat-based token binding (IP, TLS fingerprint, origin domain).
-- **Agent specification** — A new [agent-spec.md](agent-spec.md) provides the
+- **Security guidance.** Expanded security considerations covering caveat-based
+  token binding (IP, TLS fingerprint, origin domain).
+- **Agent specification.** A new [agent-spec.md](agent-spec.md) provides the
   complete protocol in ~560 tokens (~420 words), designed for AI agent context
   windows.
 
