@@ -3,27 +3,27 @@
 L402 is an open protocol for paying for and authenticating access to APIs and
 services over the internet using the Lightning Network. Developed by
 [Lightning Labs](https://lightning.engineering/), it brings to life the
-long-dormant HTTP `402 Payment Required` status code by combining macaroons
-(cryptographic bearer credentials) with Lightning Network micropayments.
+long-dormant HTTP `402 Payment Required` status code by combining cryptographic
+authentication tokens with Lightning Network micropayments.
 
 ## How It Works
 
 1. A client requests a paid resource from a server.
 2. The server responds with `402 Payment Required`, including an authentication
-   macaroon and a Lightning invoice in the `WWW-Authenticate` header.
+   token and a Lightning invoice in the `WWW-Authenticate` header.
 3. The client pays the invoice over Lightning, receiving a payment preimage as
    proof of payment.
-4. The client re-sends the request with the macaroon and preimage in the
+4. The client re-sends the request with the token and preimage in the
    `Authorization` header.
 5. The server verifies the credential and serves the resource.
 
-The macaroon cryptographically commits to the payment hash of the invoice, so
-the server can verify payment using only the macaroon and preimage. No database
-lookups or session state required.
+The token cryptographically commits to the payment hash of the invoice, so the
+server can verify payment using only the token and preimage. No database lookups
+or session state required.
 
 ```
-WWW-Authenticate: L402 macaroon="<base64>", invoice="<bolt11>"
-Authorization:    L402 <base64(macaroon)>:<hex(preimage)>
+WWW-Authenticate: L402 version="0", token="<base64>", invoice="<bolt11>"
+Authorization:    L402 <base64(token)>:<hex(preimage)>
 ```
 
 ## Why L402?
@@ -36,12 +36,13 @@ collected.
 subscriptions, users pay for exactly what they use. A single API call can cost
 fractions of a cent.
 
-**Programmable credentials.** Macaroons support attenuation: a credential
-holder can create a weaker version of their credential to share with others,
-restricting access to specific services, capabilities, or usage limits.
+**Programmable credentials.** When using macaroons as the token format (the
+recommended default), credentials support attenuation: a token holder can create
+a weaker version of their credential to share with others, restricting access to
+specific services, capabilities, or usage limits.
 
-**Stateless verification.** Servers verify credentials using only the macaroon
-and preimage, no centralized database needed. This makes L402 a natural fit for
+**Stateless verification.** Servers verify credentials using only the token and
+preimage, no centralized database needed. This makes L402 a natural fit for
 distributed systems and microservice architectures.
 
 ## Agents and Agentic Commerce
@@ -58,6 +59,35 @@ Lightning, and immediately start making authenticated requests, all without a
 human in the loop. As agents increasingly transact with services (and each
 other) using real money, L402 provides the payment+authentication layer to make
 that work over open payment rails.
+
+## Token Format
+
+L402 is token-format agnostic: any token that commits to a payment hash works.
+[Macaroons](docs/macaroons.md) (HMAC-chain bearer credentials) are the
+recommended format because they support delegation and attenuation through
+caveats, stateless verification via HMAC chains, and service-level access
+control with tier encoding. See the
+[Macaroon Minting & Verification](docs/macaroons.md) chapter and the
+[Macaroon Technical Specification](macaroon-spec.md) for the full details.
+
+## What's New
+
+This revision of the L402 specification aligns with
+[bLIP-0026](https://github.com/lightning/blips/blob/master/blip-0026.md) and
+includes the following updates:
+
+- **Token generalization.** The protocol is now token-format agnostic. The
+  `WWW-Authenticate` header uses `token=` instead of the former `macaroon=`.
+  Macaroons remain the recommended format.
+- **Version system.** A `version="0"` parameter is now included in the
+  `WWW-Authenticate` challenge header, enabling future protocol evolution.
+- **Backwards compatibility.** Explicit rules for accepting both `L402`/`LSAT`
+  scheme names and `token=`/`macaroon=` parameter names.
+- **Security guidance.** Expanded security considerations covering caveat-based
+  token binding (IP, TLS fingerprint, origin domain).
+- **Agent specification.** A new [agent-spec.md](agent-spec.md) provides the
+  complete protocol in ~560 tokens (~420 words), designed for AI agent context
+  windows.
 
 ## Specification
 
@@ -76,9 +106,11 @@ that work over open payment rails.
 * [Aperture](https://github.com/lightninglabs/aperture): gRPC/HTTP authentication reverse proxy using L402
 * [lsat-js](https://github.com/Tierion/lsat-js): JavaScript utility library for working with L402 credentials
 * [boltwall](https://github.com/tierion/boltwall): Node.js middleware-based authentication using L402
+* [Fewsats](https://www.fewsats.com/): L402-compatible API marketplace and CLI tools
 
 ## External Links
 
 * [Builder's Guide Documentation](https://docs.lightning.engineering/the-lightning-network/l402)
 * [Macaroons: Cookies with Contextual Caveats (Google Research)](https://research.google/pubs/pub41892/)
 * [HTTP/1.1 RFC, Section 6.5.2: 402 Payment Required](https://tools.ietf.org/html/rfc7231#section-6.5.2)
+* [bLIP-0026: L402 Protocol Specification](https://github.com/lightning/blips/blob/master/blip-0026.md)
