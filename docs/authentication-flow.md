@@ -33,7 +33,7 @@ sequenceDiagram
     rect rgb(240, 248, 255)
     Note over C,R: First time user
     C->>A: GET /protected
-    A->>A: Check credential — none found
+    A->>A: Check credential, none found
     A->>AL: Generate invoice
     AL-->>A: Invoice P
     A->>A: Mint macaroon M (commits to H)

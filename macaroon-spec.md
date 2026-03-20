@@ -2,7 +2,7 @@
 
 This document provides a complete technical specification for creating, encoding,
 verifying, and attenuating L402 macaroons. It is intended as an implementor's
-guide — sufficient to build a macaroon library from scratch without reference to
+guide, sufficient to build a macaroon library from scratch without reference to
 any existing implementation.
 
 ## Background
@@ -12,9 +12,9 @@ Macaroons are HMAC-chain based bearer credentials originally described in
 the Cloud](https://research.google/pubs/pub41892/). They consist of three
 components:
 
-1. **Identifier** — public data that maps to a secret root key
-2. **Caveats** — a list of predicates that restrict the macaroon's authority
-3. **Signature** — an HMAC chain computed from the root key, identifier, and
+1. **Identifier**: public data that maps to a secret root key
+2. **Caveats**: a list of predicates that restrict the macaroon's authority
+3. **Signature**: an HMAC chain computed from the root key, identifier, and
    all caveats
 
 The signature is what makes macaroons tamper-proof: any modification to the
@@ -148,7 +148,7 @@ To mint a new L402 macaroon:
 9. Return the macaroon (serialized and base64-encoded) alongside the invoice.
 
 ```
-WWW-Authenticate: L402 version="0", token="<base64(macaroon)>", invoice="<bolt11>"
+WWW-Authenticate: L402 macaroon="<base64(macaroon)>", invoice="<bolt11>"
 ```
 
 ### Pseudocode
@@ -280,7 +280,7 @@ the macaroon's current signature as the HMAC key:
 new_sig = HMAC(old_sig, new_caveat)
 ```
 
-The holder does NOT need the root key to do this — only the current signature,
+The holder does NOT need the root key to do this, only the current signature,
 which is embedded in the macaroon they already possess.
 
 **Rules:**
@@ -324,8 +324,8 @@ presented signature:
 
 1. Extract the identifier from the macaroon.
 2. Look up the root key using `sha256(identifier)` as the storage key.
-3. If no root key exists, REJECT — the macaroon was never minted or has been
-   revoked.
+3. If no root key exists, REJECT (the macaroon was never minted or has been
+   revoked).
 4. Recompute the chain:
    ```
    sig = HMAC(root_key, identifier)
@@ -334,7 +334,7 @@ presented signature:
    ```
 5. Compare the computed `sig` to the macaroon's signature field using a
    constant-time comparison.
-6. If they differ, REJECT — the macaroon has been tampered with.
+6. If they differ, REJECT (the macaroon has been tampered with).
 
 ### Step 2: Payment Verification \(Minter\)
 
@@ -347,7 +347,7 @@ presented signature:
 
 ### Step 3: Caveat Verification \(Authorizer\)
 
-Each caveat is evaluated against a **satisfier** — a function that understands
+Each caveat is evaluated against a **satisfier**, a function that understands
 the caveat's condition and can evaluate it.
 
 For each unique caveat condition present in the macaroon:
@@ -449,10 +449,10 @@ A V2 macaroon is a sequence of typed fields:
 
 | Tag | Value | Meaning |
 |-----|-------|---------|
-| `0x02` | — | Version indicator (V2 format). No data follows. |
+| `0x02` | (none) | Version indicator (V2 format). No data follows. |
 | `0x06` | varint length + bytes | **Location** (optional, UTF-8 string). |
 | `0x02` | varint length + bytes | **Identifier**. |
-| `0x00` | — | End-of-section marker (ends the macaroon header). |
+| `0x00` | (none) | End-of-section marker (ends the macaroon header). |
 
 After the header, each first-party caveat is encoded as:
 
@@ -461,14 +461,14 @@ After the header, each first-party caveat is encoded as:
 | `0x05` | varint length + bytes | Caveat **location** (optional). |
 | `0x01` | varint length + bytes | Caveat **identifier** (the caveat string). |
 | `0x02` | varint length + bytes | Caveat **verification ID** (empty for first-party). |
-| `0x00` | — | End-of-section marker (ends this caveat). |
+| `0x00` | (none) | End-of-section marker (ends this caveat). |
 
 After all caveats, the signature is encoded as:
 
 | Tag | Value | Meaning |
 |-----|-------|---------|
 | `0x06` | varint length + bytes | **Signature** (32 bytes for HMAC-SHA256). |
-| `0x00` | — | End-of-section marker (ends the macaroon). |
+| `0x00` | (none) | End-of-section marker (ends the macaroon). |
 
 #### Field Encoding
 
@@ -527,7 +527,7 @@ For client-side storage and transmission, the full token includes:
 
 ## Reference Implementations
 
-- [gopkg.in/macaroon.v2](https://pkg.go.dev/gopkg.in/macaroon.v2) — Go macaroon library
-- [libmacaroons](https://github.com/rescrv/libmacaroons) — C reference implementation
-- [pymacaroons](https://github.com/ecordell/pymacaroons) — Python macaroon library
-- [Aperture L402 package](https://github.com/lightninglabs/aperture/tree/master/l402) — Reference L402 implementation
+- [gopkg.in/macaroon.v2](https://pkg.go.dev/gopkg.in/macaroon.v2): Go macaroon library
+- [libmacaroons](https://github.com/rescrv/libmacaroons): C reference implementation
+- [pymacaroons](https://github.com/ecordell/pymacaroons): Python macaroon library
+- [Aperture L402 package](https://github.com/lightninglabs/aperture/tree/master/l402): Reference L402 implementation
