@@ -1,141 +1,402 @@
-# Protocol Specification
+# L402 Protocol Specification
 
-## Introduction
+## 1. Introduction
 
-In this chapter, we outline the specification for the abstract L402 HTTP and gRPC protocols. This is intended to be along the lines of the document we would submit if we were submitting the L402 HTTP/gRPC protocol to a standards committee. For more details on the higher-level purpose and motivations behind L402, please [see this chapter](introduction.md).
+This document specifies the L402 authentication scheme for HTTP and gRPC.
+L402 combines the [HTTP 402 Payment Required](https://tools.ietf.org/html/rfc7231#section-6.5.2)
+status code with [Lightning Network](https://github.com/lightning/bolts)
+invoice payments to create a challenge-response protocol for paid API access.
+A server issues a _challenge_ containing an authentication credential and a
+Lightning invoice; the client pays the invoice to obtain a preimage, then
+presents the credential and preimage together as proof of payment.
 
-## Specification
+The credential is a [macaroon](https://research.google/pubs/pub41892/) (an
+HMAC-chain bearer token) that cryptographically commits to the invoice's
+payment hash. This binding enables stateless verification: the server checks
+`H == sha256(preimage)` against the hash embedded in the macaroon, with no
+database lookup required. See [Macaroon Minting & Verification](docs/macaroons.md)
+for a full treatment of the macaroon format.
 
-This section defines the "L402" authentication scheme, which transmits credentials as `<macaroon(s)>:<preimage>` pairs, where the preimage is encoded as hex and the Macaroon is encoded as base64. Multiple Macaroons are base64 encoded individually and listed comma separated before the colon.  
-This scheme is not considered to be a secure method of user authentication unless used in conjunction with some external secure system such as TLS, as the Macaroon and preimage are passed over the network as cleartext.
+For higher-level motivation and use cases, see the
+[Introduction](docs/introduction.md).
 
-The L402 authentication scheme is based on the model that the client needs to authenticate itself with a Macaroon and invoice preimage for each backend service it wants to access. The server will service the request only if it can validate the Macaroon and preimage for the particular backend service requested.
+## 2. Requirements Language
 
-The L402 authentication scheme utilizes the Authentication Framework specified in [_RFC 7235_](https://tools.ietf.org/html/rfc7235) as follows.
+The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD",
+"SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and "OPTIONAL" in this
+document are to be interpreted as described in [BCP 14](https://tools.ietf.org/html/rfc2119)
+\([RFC 2119](https://tools.ietf.org/html/rfc2119),
+[RFC 8174](https://tools.ietf.org/html/rfc8174)\) when, and only when, they
+appear in all capitals, as shown here.
 
-In challenges: the scheme name is "L402". Note that the scheme name is case-insensitive. For credentials, the syntax is:
+## 3. Terminology
 
-`macaroons` → [_&lt;base64 encoding&gt;_](https://tools.ietf.org/html/rfc3548#section-3), comma separated if multiple Macaroons are present  
-`preimage` → [_&lt;hex encoding&gt;_](https://tools.ietf.org/html/rfc3548#section-6)  
-`token` → macaroons ":" preimage
+**L402 Credential.** A `<macaroon>:<preimage>` pair transmitted in the HTTP
+`Authorization` header. The macaroon is base64-encoded; the preimage is
+hex-encoded. This is the artifact a client presents to prove payment.
 
-Specifically, the syntax for "token" specified above is used, which can be considered comparable to the [_"token68" syntax_](https://tools.ietf.org/html/rfc7235#section-2.1) used for HTTP basic auth.
+**Macaroon.** An HMAC-chain bearer credential minted by the server. The
+macaroon's identifier commits to the payment hash of a Lightning invoice.
+Macaroons support _caveats_ (restrictions) and _attenuation_ (delegation with
+reduced authority). See the [Macaroon Technical Specification](macaroon-spec.md)
+for construction details.
 
-### Reusing Credentials
+**Preimage.** The 32-byte value `r` such that `sha256(r)` equals the payment
+hash of the Lightning invoice. Possession of the preimage proves the invoice
+was paid.
 
-L402 is intended to be reused until they are revoked and the server issues a new challenge in response to a client request containing a newly invalid L402. Possible revocation conditions include: expiry date, exceeded N usages, volume of usages in a certain time period necessitating a tier upgrade, and potentially others \(discussed further in the higher-level design document\).
+**Payment Hash.** The SHA-256 hash `H` of the preimage, embedded in both the
+Lightning invoice and the macaroon identifier. The binding `H == sha256(r)` is
+the core verification primitive.
 
-L402  could be configured for use on a per-backend-service basis or for all Lightning Labs services. I.e., it’s flexible whether an L402 could apply to both the Bos score API _and_ a loop-in, or just one of them. This flexibility is afforded because all services are going to be gated by the same L402 proxy, which verifies all Macaroons for all backend services.
+**Challenge.** The `WWW-Authenticate: L402 ...` header returned by the server
+alongside HTTP 402, containing a macaroon and a Lightning invoice.
 
-### Security Considerations
+**Caveat.** A restriction appended to a macaroon's HMAC chain. Caveats can
+encode service access, capabilities, expiration, volume limits, and other
+constraints. Each successive caveat can only _narrow_ the macaroon's authority,
+never widen it.
 
-If a client’s L402 is intercepted by Mallory, which is possible if the transmission is not encrypted in some way such as TLS, the L402 can be used by Mallory and the L402 proxy would not be able to distinguish this usage as illicit.
+## 4. Protocol Overview
 
-L402 authentication is also vulnerable to spoofing by counterfeit servers. If a client slightly mistypes the URL of a desired backend service, they become vulnerable to spoofing attacks if connecting to a server that maliciously stores their L402 and uses it for their own purposes. This attack could be addressed by requiring the user of the L402 to have a specific IP address. However, there are downsides to this approach; for example, if a user switches WiFi networks, their credential becomes unusable.
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant S as Server
+    participant LN as Lightning Network
 
-## HTTP Specification
+    C->>S: GET /resource
+    S-->>C: 402 Payment Required<br/>WWW-Authenticate: L402 macaroon="M", invoice="P"
+    C->>LN: pay(P)
+    LN-->>C: preimage r
+    C->>S: GET /resource<br/>Authorization: L402 M:r
+    S->>S: verify macaroon, check H == sha256(r)
+    S-->>C: 200 OK + resource
+```
 
-In this section, we specify the protocol for the HTTP portion of the L402 proxy.
+### 4.1. Status Code Usage
 
-Upon receipt of a request for a URI of an L402-proxied backend service that lacks credentials or contains an L402 that is invalid or insufficient in some way, the server should reply with a challenge using the 402 \(Payment Required\) status code. **Officially, in the HTTP RFC documentation, status code 402 is**  [_**"reserved for future use"**_](https://tools.ietf.org/html/rfc7231#section-6.5.2)  **-- but this document assumes the future has arrived.**
+| Condition | Status | Response |
+|-----------|--------|----------|
+| Resource requires payment, no credential provided | 402 | `WWW-Authenticate` challenge with macaroon + invoice |
+| Credential present but macaroon invalid or tampered | 401 | Unauthorized |
+| Credential present but preimage does not match payment hash | 401 | Unauthorized |
+| Credential valid, access granted | 200 | Requested resource |
 
-Alongside the 402 status code, the server should specify the `WWW-Authenticate` header \([_\[RFC7235\], Section 4.1_](https://tools.ietf.org/html/rfc7235#section-4.1)\) field to indicate the L402 authentication scheme and the Macaroon needed for the client to form a complete L402.
+The 402 status code is used exclusively for the initial payment challenge. Once
+a client presents a credential (valid or not), the server MUST respond with 401
+if verification fails, not 402. This distinction lets clients differentiate
+"you need to pay" from "your credential is broken."
 
-For instance:
+## 5. The L402 Authentication Scheme
+
+The L402 scheme is registered under the HTTP Authentication Framework specified
+in [RFC 7235](https://tools.ietf.org/html/rfc7235). The scheme name is "L402"
+(case-insensitive).
+
+### 5.1. Challenge (WWW-Authenticate)
+
+When a server requires payment for a resource, it MUST respond with HTTP 402
+and include a `WWW-Authenticate` header of the form:
+
+```
+WWW-Authenticate: L402 macaroon="<base64>", invoice="<bolt11>"
+```
+
+**Parameters:**
+
+- `macaroon` (REQUIRED): The authentication macaroon, base64-encoded
+  ([RFC 4648](https://tools.ietf.org/html/rfc4648)). The macaroon MUST commit
+  to the payment hash `H` of the invoice `P` in its identifier
+  (see [Macaroon Technical Specification](macaroon-spec.md), Section
+  "Identifier Structure").
+
+- `invoice` (REQUIRED): A [BOLT 11](https://github.com/lightning/bolts/blob/master/11-payment-encoding.md)
+  payment request. The client MUST pay this invoice to obtain the preimage
+  required to complete the `Authorization` header.
+
+**Example:**
 
 ```text
- HTTP/1.1 402 Payment Required
-
+HTTP/1.1 402 Payment Required
 Date: Mon, 04 Feb 2014 16:50:53 GMT
-
 WWW-Authenticate: L402 macaroon="AGIAJEemVQUTEyNCR0exk7ek90Cg==", invoice="lnbc1500n1pw5kjhmpp5fu6xhthlt2vucmzkx6c7wtlh2r625r30cyjsfqhu8rsx4xpz5lwqdpa2fjkzep6yptksct5yp5hxgrrv96hx6twvusycn3qv9jx7ur5d9hkugr5dusx6cqzpgxqr23s79ruapxc4j5uskt4htly2salw4drq979d7rcela9wz02elhypmdzmzlnxuknpgfyfm86pntt8vvkvffma5qc9n50h4mvqhngadqy3ngqjcym5a"
 ```
 
-where `"AGIAJEemVQUTEyNCR0exk7ek90Cg=="` is the Macaroon that the client must include for each of its authorized requests and `"lnbc1500n1pw5kjhmpp..."` is the invoice the client must pay to reveal the preimage that must be included for each of its authorized requests.
+Where `"AGIAJEemVQUTEyNCR0exk7ek90Cg=="` is the macaroon the client must
+include in each authorized request, and `"lnbc1500n1pw5kjhmpp..."` is the
+BOLT 11 invoice the client must pay to reveal the preimage.
 
-In other words, to receive authorization, the client:
+### 5.2. Credentials (Authorization)
 
-1. Pays the invoice from the server, thus revealing the invoice’s preimage
-2. Constructs the L402 by concatenating the base64-encoded Macaroon\(s\), a single
+The L402 credential is transmitted in the `Authorization` header using the
+following syntax:
 
-   colon \(":"\), and the hex-encoded preimage.
+```
+Authorization: L402 <base64(macaroon)>:<hex(preimage)>
+```
 
-Since the Macaroon and the preimage are both binary data encoded in an ASCII based format, there should be no problem with either containing control characters or colons \(see "CTL" in [_Appendix B.1 of \[RFC5234\]_](https://tools.ietf.org/html/rfc5234#appendix-B.1)\). If a user provides a Macaroon or preimage containing any of these characters, this is to be considered an invalid L402 and should result in a 402 and authentication information as specified above.
+Where:
 
-If a client wishes to send the Macaroon `"AGIAJEemVQUTEyNCR0exk7ek90Cg=="` \(already base64-encoded by the server\) and the preimage `"1234abcd1234abcd1234abcd"` \(already hex encoded by the payee's Lightning node\), they would use the following header field:
+- The macaroon is base64-encoded per [RFC 4648](https://tools.ietf.org/html/rfc4648).
+  Multiple macaroons are base64-encoded individually and comma-separated before
+  the colon.
+- The preimage is hex-encoded per [RFC 3548, Section 6](https://tools.ietf.org/html/rfc3548#section-6).
+
+This syntax is comparable to the
+["token68" syntax](https://tools.ietf.org/html/rfc7235#section-2.1) used for
+HTTP Basic auth.
+
+**Example:**
 
 ```text
 Authorization: L402 AGIAJEemVQUTEyNCR0exk7ek90Cg==:1234abcd1234abcd1234abcd
 ```
 
-## gRPC Protocol Specification
+Since the macaroon and preimage are both binary data encoded in ASCII, there is
+no issue with control characters or colons (see "CTL" in
+[Appendix B.1 of RFC 5234](https://tools.ietf.org/html/rfc5234#appendix-B.1)).
+If a client provides a macaroon or preimage containing control characters, the
+server MUST treat it as an invalid L402 and respond with 401.
 
-This section defines the "L402" gRPC authentication scheme, which, similarly to the HTTP version, transmits credentials as `<macaroon(s)>:<preimage>` pairs where the preimage is encoded as hex and the Macaroon is encoded as base64. Multiple Macaroons are base64 encoded individually and listed comma separated before the colon. As above, this scheme is not considered to be a secure method of user authentication unless used in conjunction with some external secure system such as TLS, as the Macaroon and preimage are passed over the network as cleartext.
+### 5.3. Grammar
 
-The L402 proxy will determine whether an incoming HTTP request is gRPC by checking whether the Content-Type header begins with application/grpc, therefore gRPC clients must set this header in all requests.
+```
+l402-challenge   = "L402" 1*SP l402-params
+l402-params      = macaroon-param "," SP invoice-param
+macaroon-param   = "macaroon" "=" quoted-string
+invoice-param    = "invoice" "=" quoted-string
 
-Note that the L402 proxy must be HTTP/2 compatible to accommodate requests for gRPC backend services, since the gRPC client expects to be talking to a server that "speaks" HTTP/2.
-
-Upon receipt of a request for a URI of an L402-proxied backend service that lacks L402 credentials, the server should reply with a challenge encoded in the grpc-status-details-bin HTTP header as a serialized gRPC Status proto message, to be deserialized on the client side. Once deserialized, the proto will look roughly like this object:
-
-```javascript
-{
-    code: 402,
-    message: "missing L402",
-    details: {
-        type_url: "type.googleapis.com/google.rpc.QuotaFailure",
-        value: {
-            macaroon: "<macaroon>",
-            invoice: "<invoice>"
-        }
-    }
-}
+l402-credential  = "L402" 1*SP macaroons ":" preimage
+macaroons        = base64 *("," base64)
+preimage         = 1*HEXDIG
+base64           = 1*( ALPHA / DIGIT / "+" / "/" / "=" )
 ```
 
-Note that deserialization is language-dependent. In Go, it looks something like this:
+## 6. HTTP Protocol Flow
 
-```go
-_, err := client.AccessBackendService(ctx, &pb.BackendServiceRequest{})
-If err != nil {
-        st, _ := status.FromError(err)
-        message := st.Message() // get message
-        code := st.Code() // get code
-        for _, detail := range st.Details() {
-                switch t := detail.(type) {
-                case *errdetails.QuotaFailure:
-                for _, violation := range t.GetViolations() {
-                        // parse macaroon from "macaroon:&lt;mac&gt;" format
-                        // parse invoice from "invoice:&lt;inv&gt;" format
-…
-```
+### 6.1. Server Flow
 
-Serialization is similarly language-dependent.
+Upon receipt of a request for a resource that requires payment and lacks a
+valid L402 credential:
 
-Depending on the context, QuotaFailure may not be the most descriptive error message, but it fits a scenario where a user has exceeded their free "trial period" for a backend service.
+1. The server SHOULD derive a price for the resource expressed in
+   millisatoshis (1/1000th of a satoshi) and create a
+   [BOLT 11](https://github.com/lightning/bolts/blob/master/11-payment-encoding.md)
+   invoice `P` requesting that amount from its backing Lightning node.
 
-Alongside the serialized status details, the server should specify status code `200 OK`, the `Content-Type` header, and the following trailers: `grpc-message` and `grpc-status`.
+2. The server MUST mint a new macaroon `M` for the client. The macaroon MUST
+   commit to the payment hash `H` of the invoice `P` in its identifier. This
+   commitment enables in-band payment verification: the server can confirm a
+   client has paid using only the macaroon and preimage, with no additional
+   state or backend lookup.
 
-For instance:
+3. The server MUST reply with HTTP 402 (Payment Required). Officially, the
+   HTTP specification marks 402 as
+   ["reserved for future use"](https://tools.ietf.org/html/rfc7231#section-6.5.2),
+   but this document assumes the future has arrived.
 
-```text
-HTTP/2 200 OK
-Date: Mon, 04 Feb 2014 16:50:53 GMT
-Content-Type: application/grpc
-…
-Grpc-Message: missing L402
-Grpc-Status: 402
-Grpc-Status-Details-Bin: CJIDEgxtaXNzaW5nIExTQVQaeQ…
-```
+4. The server MUST include a `WWW-Authenticate` header per Section 5.1
+   containing the macaroon and invoice.
 
-Where `"CJIDEgxtaXNzaW5nIExTQVQaeQ…"` is the serialized gRPC status proto.
+Upon receiving a request with an `Authorization: L402` header:
 
-Once the client has deserialized the proto and extracted the Macaroon and invoice, they may pay the invoice and construct the L402 identically to the HTTP specification, i.e. by concatenating the base64-encoded Macaroon, a single colon \(":"\), and the hex-encoded preimage.
+1. The server MUST verify the cryptographic integrity of the macaroon (HMAC
+   chain verification against the root key). If the macaroon is invalid, the
+   server MUST return 401 Unauthorized.
 
-If a client wishes to send the Macaroon `"AGIAJEemVQUTEyNCR0exk7ek90Cg=="` \(already base64-encoded by the server\) and the preimage `"1234abcd1234abcd1234abcd"` \(already hex encoded by the payee's Lightning node\), they would use the following header field:
+2. The server MUST parse the `Authorization` header into the base64-encoded
+   macaroon `M` and the hex-encoded preimage `r`.
 
-```text
-Authorization: L402 AGIAJEemVQUTEyNCR0exk7ek90Cg==:1234abcd1234abcd1234abcd
-```
+3. The server MUST verify that the invoice tied to the macaroon has been paid:
+   1. If the server committed to the payment hash `H` in the macaroon, it can
+      verify that `H == sha256(r)`. This is the RECOMMENDED approach as it
+      enables stateless verification.
+   2. Otherwise, the server SHOULD verify that the invoice `P` has been paid
+      in full via its Lightning node.
 
-Note this is the same as the HTTP specification. Other gRPC headers and trailers are required; more information can be found in the [_gRPC over HTTP2 specification_](https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md).
+4. If verification fails, the server MUST return 401 Unauthorized. Otherwise,
+   the server SHOULD process the request or forward it to the proxied backend.
 
+It is imperative that the server ensure payment before processing the request
+or forwarding it to a backend. By cryptographically committing to the payment
+hash in the macaroon, the server can perform fast, stateless verification of
+the payment hash + preimage relation.
+
+### 6.2. Client Flow
+
+Upon receiving a `WWW-Authenticate: L402` challenge:
+
+1. The client SHOULD verify that the BOLT 11 invoice does not request an
+   excessive amount of Bitcoin. If the amount exceeds a configured threshold,
+   the client SHOULD abandon the request.
+
+2. After validating the invoice, the client MUST pay the invoice over the
+   Lightning Network to obtain the payment preimage `r`.
+
+3. The client MUST construct an `Authorization` header per Section 5.2:
+   ```
+   Authorization: L402 <base64(macaroon)>:<hex(preimage)>
+   ```
+
+4. The client MUST re-issue the original HTTP request with the `Authorization`
+   header attached.
+
+## 7. gRPC Protocol Flow
+
+gRPC is transmitted over HTTP/2 but uses special trailing headers for
+protocol-specific information. The
+[gRPC specification](https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md#responses)
+requires a status code of 200 in all responses. As a result, the L402 gRPC
+flow is modified to always return 200 OK at the HTTP level and instead convey
+the payment challenge via gRPC trailing headers.
+
+### 7.1. Server Flow
+
+The server flow is identical to the HTTP flow (Section 6.1) with the following
+modifications:
+
+1. The server MUST reply with HTTP 200 OK (not 402).
+
+2. The server MUST encode the L402 challenge as a serialized gRPC Status proto
+   in the `grpc-status-details-bin` trailing header. The deserialized proto
+   contains the macaroon and invoice:
+
+   ```javascript
+   {
+       code: 402,
+       message: "missing L402",
+       details: {
+           type_url: "type.googleapis.com/google.rpc.QuotaFailure",
+           value: {
+               macaroon: "<macaroon>",
+               invoice: "<invoice>"
+           }
+       }
+   }
+   ```
+
+3. The server MUST include the following trailing headers:
+   - `Grpc-Message: missing L402`
+   - `Grpc-Status: 402`
+
+   Example:
+
+   ```text
+   HTTP/2 200 OK
+   Date: Mon, 04 Feb 2014 16:50:53 GMT
+   Content-Type: application/grpc
+   ...
+   Grpc-Message: missing L402
+   Grpc-Status: 402
+   Grpc-Status-Details-Bin: CJIDEgxtaXNzaW5nIExTQVQaeQ...
+   ```
+
+The L402 proxy determines whether a request is gRPC by checking whether the
+`Content-Type` header begins with `application/grpc`. The proxy MUST be HTTP/2
+compatible, since gRPC clients expect an HTTP/2-speaking server.
+
+### 7.2. Client Flow
+
+The gRPC client flow is identical to the HTTP flow (Section 6.2). Once the
+client has deserialized the proto and extracted the macaroon and invoice, it
+pays the invoice and constructs the L402 credential identically to the HTTP
+case (concatenating base64-encoded macaroon, colon, hex-encoded preimage).
+
+Other gRPC headers and trailers are required as normal; see the
+[gRPC over HTTP2 specification](https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md)
+for details.
+
+## 8. Credential Reuse and Revocation
+
+L402 credentials are intended for reuse. A client SHOULD cache and reuse its
+credential until the server rejects it with a new 402 challenge. An L402 can
+be scoped to a single backend service or apply across all services behind the
+same L402 proxy, since the proxy verifies all macaroons for all backends.
+
+Possible revocation conditions include:
+
+- Expiry date encoded as a caveat
+- Exceeded usage count
+- Volume of usage in a time period that necessitates a tier upgrade
+- Explicit server-side revocation (by deleting the root key)
+
+When a credential is revoked, the server issues a fresh 402 challenge and the
+client repeats the payment flow.
+
+## 9. Security Considerations
+
+### 9.1. Transport Security
+
+L402 credentials are bearer tokens. The macaroon and preimage are transmitted
+as cleartext in HTTP headers and MUST be protected by TLS. Implementations
+MUST use TLS 1.2 ([RFC 5246](https://tools.ietf.org/html/rfc5246)) or later;
+TLS 1.3 ([RFC 8446](https://tools.ietf.org/html/rfc8446)) is RECOMMENDED.
+
+Servers MUST NOT issue L402 challenges over unencrypted HTTP. Clients MUST NOT
+send L402 credentials over unencrypted HTTP.
+
+### 9.2. Credential Interception
+
+If a client's L402 is intercepted by an attacker (e.g., via a compromised TLS
+termination point), the attacker can reuse the credential. The L402 proxy would
+not be able to distinguish this usage as illicit, since the credential is a
+bearer token.
+
+### 9.3. Spoofing by Counterfeit Servers
+
+L402 is vulnerable to spoofing if a client connects to a malicious server
+(e.g., by mistyping a URL). The malicious server could store the client's L402
+and reuse it.
+
+Because macaroons support attenuation through caveats, this class of attack can
+be mitigated by binding the credential to client-specific details. A server (or
+the client itself, via self-attenuation) could add caveats restricting validity
+to a particular IP address, TLS client certificate fingerprint, origin domain,
+or other client-identifying predicate. The server then verifies these caveats
+on each request, ensuring a stolen credential cannot be replayed from a
+different context.
+
+Each binding predicate carries its own tradeoffs: an IP caveat prevents use
+after a network change; a TLS client cert fingerprint requires the client to
+maintain a stable key pair. Deployments SHOULD choose binding predicates
+appropriate to their threat model.
+
+### 9.4. Replay Protection
+
+The macaroon itself does not inherently prevent replay. Replay protection comes
+from the caveat and revocation mechanisms: expiry caveats, usage-count tracking,
+and root key deletion all limit the window in which a stolen credential is
+useful.
+
+### 9.5. Amount Verification
+
+Clients MUST verify that the invoice amount is reasonable for the requested
+resource before paying. Malicious servers could request arbitrarily large
+payments. Client implementations SHOULD enforce a configurable maximum payment
+threshold.
+
+## 10. Backwards Compatibility
+
+The L402 protocol was formerly known as LSAT. To preserve backwards
+compatibility with deployed clients and servers:
+
+- Servers SHOULD send both `LSAT` and `L402` scheme names in `WWW-Authenticate`
+  challenge headers. The `LSAT` header SHOULD appear first for compatibility
+  with older client implementations.
+- Clients and servers MUST accept both `LSAT` and `L402` in `Authorization`
+  headers.
+
+## 11. References
+
+- [RFC 2119: Key words for use in RFCs](https://tools.ietf.org/html/rfc2119)
+- [RFC 4648: Base Encodings](https://tools.ietf.org/html/rfc4648)
+- [RFC 5234: ABNF](https://tools.ietf.org/html/rfc5234)
+- [RFC 5246: TLS 1.2](https://tools.ietf.org/html/rfc5246)
+- [RFC 7235: HTTP Authentication](https://tools.ietf.org/html/rfc7235)
+- [RFC 7231: HTTP Semantics (402)](https://tools.ietf.org/html/rfc7231#section-6.5.2)
+- [RFC 8174: RFC 2119 Clarification](https://tools.ietf.org/html/rfc8174)
+- [RFC 8446: TLS 1.3](https://tools.ietf.org/html/rfc8446)
+- [BOLT 11: Invoice Protocol](https://github.com/lightning/bolts/blob/master/11-payment-encoding.md)
+- [Macaroons: Cookies with Contextual Caveats (Google Research)](https://research.google/pubs/pub41892/)
+- [gRPC over HTTP2](https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md)

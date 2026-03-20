@@ -1,34 +1,84 @@
 # L402: Lightning HTTP 402 Protocol
 
-L402 is a standard to support the use case of charging for services and authenticating users in distributed networks. Developed by [Lightning Labs](https://lightning.engineering/), it combines the strengths of Macaroons, for better authentication, and the strengths of the Lightning Network, for better payments. L402 API credentials invigorate the HTTP error code _402 Payment Required_ by combining the fine-grained authentication capabilities of Macaroons with Lightning Network payments, making it easy to charge amounts of any size for an API request, web page or resource.
+L402 is an open protocol for paying for and authenticating access to APIs and
+services over the internet using the Lightning Network. Developed by
+[Lightning Labs](https://lightning.engineering/), it brings to life the
+long-dormant HTTP `402 Payment Required` status code by combining macaroons
+(cryptographic bearer credentials) with Lightning Network micropayments.
 
-This repository outlines the open source design for L402, formerly published under the name LSAT. We welcome contributions to this repository.
+## How It Works
 
-An L402 is created like a [Macaroon](macaroons.md). It combines the advantages of bearer and identity-based authentication systems that can quickly be issued and verified without requiring access to a central database.
+1. A client requests a paid resource from a server.
+2. The server responds with `402 Payment Required`, including an authentication
+   macaroon and a Lightning invoice in the `WWW-Authenticate` header.
+3. The client pays the invoice over Lightning, receiving a payment preimage as
+   proof of payment.
+4. The client re-sends the request with the macaroon and preimage in the
+   `Authorization` header.
+5. The server verifies the credential and serves the resource.
 
-In addition to a regular Macaroon, an L402 includes a payment hash, which is presented to the user with a Lightning Network invoice. The user can prove their successful payment if the preimage matches the payment hash.
+The macaroon cryptographically commits to the payment hash of the invoice, so
+the server can verify payment using only the macaroon and preimage. No database
+lookups or session state required.
 
-A valid L402, meaning a Macaroon issued by the service and the preimage obtained by the user, is easy to verify by distributed systems. Instead of looking up cookies or payment details using centralized databases, an L402 can be verified using minimal information and basic cryptography.
+```
+WWW-Authenticate: L402 macaroon="<base64>", invoice="<bolt11>"
+Authorization:    L402 <base64(macaroon)>:<hex(preimage)>
+```
 
-This system allows users to automate pricing on the fly and enables a number of novel constructs such as automated tier upgrades. L402 get its name from the HTTP status code 402: Payment Required. They can be viewed as a global HTTP 402 reverse proxy at the load balancing level for all services.
+## Why L402?
 
-Today, L402 is implemented in [Aperture](https://github.com/lightninglabs/aperture) and used for authentication in Lightning Lab’s [Loop](https://github.com/lightninglabs/loop) and [Pool](https://github.com/lightninglabs/pool) services for authentication.
+**No accounts, no passwords.** Users pay a Lightning invoice and receive a
+cryptographic credential. No email, no sign-up form, no personal data
+collected.
 
-* [Introduction](introduction.md)
-* [Authentication flow](authentication-flow.md)
-* [Protocol Specification](protocol-specification.md)
-* [Macaroon Minting & Verification](macaroons.md)
+**Pay-as-you-go.** Instead of choosing between free tiers and monthly
+subscriptions, users pay for exactly what they use. A single API call can cost
+fractions of a cent.
+
+**Programmable credentials.** Macaroons support attenuation: a credential
+holder can create a weaker version of their credential to share with others,
+restricting access to specific services, capabilities, or usage limits.
+
+**Stateless verification.** Servers verify credentials using only the macaroon
+and preimage, no centralized database needed. This makes L402 a natural fit for
+distributed systems and microservice architectures.
+
+## Agents and Agentic Commerce
+
+L402 is a natural fit for AI agents and autonomous software that need to
+discover, evaluate, and pay for services without human intervention. The
+credentials are machine-readable (structured HTTP headers), self-contained (no
+out-of-band registration or OAuth flows), and instantly obtainable (pay an
+invoice, get a credential, all in one HTTP round-trip). Agents can also
+delegate scoped sub-credentials to other agents via caveat attenuation.
+
+In practice, an AI agent can autonomously discover an API, pay for access with
+Lightning, and immediately start making authenticated requests, all without a
+human in the loop. As agents increasingly transact with services (and each
+other) using real money, L402 provides the payment+authentication layer to make
+that work over open payment rails.
+
+## Specification
+
+* [Protocol Specification](protocol-specification.md): HTTP and gRPC protocol details, formal definitions
+* [Macaroon Technical Specification](macaroon-spec.md): Detailed create/verify/attenuate implementation guide
+* [Agent Specification](agent-spec.md): Complete protocol in ~560 tokens for AI agent integration
+
+## Documentation
+
+* [Introduction](docs/introduction.md): Motivation, lineage, and high-level overview
+* [Authentication Flow](docs/authentication-flow.md): Step-by-step walkthrough with diagrams
+* [Macaroon Minting & Verification](docs/macaroons.md): Macaroon format overview and caveat system
 
 ## Implementations
 
-* [Aperture: A gRPC/HTTP authentication reverse proxy using L402s](https://github.com/lightninglabs/aperture)
-* [A utility library for working with L402s](https://github.com/Tierion/lsat-js)
-* [boltwall: Nodejs middleware-based authentication using L402s](https://github.com/tierion/boltwall)
+* [Aperture](https://github.com/lightninglabs/aperture): gRPC/HTTP authentication reverse proxy using L402
+* [lsat-js](https://github.com/Tierion/lsat-js): JavaScript utility library for working with L402 credentials
+* [boltwall](https://github.com/tierion/boltwall): Node.js middleware-based authentication using L402
 
-## External links / References
+## External Links
 
 * [Builder's Guide Documentation](https://docs.lightning.engineering/the-lightning-network/l402)
-* [L402 Playground](https://lsat-playground.bucko.now.sh/)
-* [Macaroons: Cookies with Contextual Caveats](https://research.google/pubs/pub41892/)
+* [Macaroons: Cookies with Contextual Caveats (Google Research)](https://research.google/pubs/pub41892/)
 * [HTTP/1.1 RFC, Section 6.5.2: 402 Payment Required](https://tools.ietf.org/html/rfc7231#section-6.5.2)
-
