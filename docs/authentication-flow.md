@@ -36,19 +36,19 @@ sequenceDiagram
     A->>A: Check credential, none found
     A->>AL: Generate invoice
     AL-->>A: Invoice P
-    A->>A: Mint macaroon M (commits to H)
-    A-->>C: 402 Payment Required + WWW-Authenticate: L402 macaroon="M", invoice="P"
+    A->>A: Create token T (commits to H)
+    A-->>C: 402 Payment Required + WWW-Authenticate: L402 version="0", token="M", invoice="P"
     C->>CL: Pay invoice P
     CL->>AL: Pay invoice (LN payment)
     AL-->>CL: Preimage r
     CL-->>C: Preimage r
-    C->>C: Store macaroon M + preimage r
+    C->>C: Store token T + preimage r
     end
 
     rect rgb(240, 255, 240)
     Note over C,R: User with credential
     C->>A: GET /protected + Authorization: L402 M:r
-    A->>A: Verify macaroon, check H == sha256(r)
+    A->>A: Verify token, check H == sha256(r)
     A->>R: GET /protected (forwarded)
     R-->>A: Protected content
     A-->>C: 200 OK + Protected content
@@ -73,30 +73,30 @@ authentication server.
 3. The proxy instructs its backing Lightning node to create an invoice over the
    small amount required to acquire a fresh credential.
 
-4. In addition to the invoice, the proxy mints a fresh macaroon tied to the
-   invoice. The macaroon is cryptographically constructed so that it is only
-   valid once the invoice has been paid (the macaroon identifier commits to the
+4. In addition to the invoice, the proxy creates a fresh authentication token
+   tied to the invoice. The token is cryptographically constructed so that it
+   is only valid once the invoice has been paid (the token commits to the
    invoice's payment hash).
 
-5. The macaroon and invoice are sent back to the client via the
+5. The token and invoice are sent back to the client via the
    `WWW-Authenticate` header alongside the HTTP 402 status code:
    ```
-   WWW-Authenticate: L402 macaroon="<base64>", invoice="<bolt11>"
+   WWW-Authenticate: L402 version="0", token="<base64>", invoice="<bolt11>"
    ```
 
 6. The client extracts the invoice and automatically instructs its connected
    Lightning node to pay it.
 
 7. Paying the invoice reveals the cryptographic proof of payment (the
-   preimage). The client stores the preimage alongside the macaroon.
+   preimage). The client stores the preimage alongside the token.
 
-8. The combination of the macaroon and preimage yields a fully valid L402
+8. The combination of the token and preimage yields a fully valid L402
    credential that can be cryptographically verified.
 
 9. The client repeats the original request, attaching the L402 credential via
    the `Authorization` header:
    ```
-   Authorization: L402 <base64(macaroon)>:<hex(preimage)>
+   Authorization: L402 <base64(token)>:<hex(preimage)>
    ```
 
 10. The authentication server intercepts the request, extracts the L402, and

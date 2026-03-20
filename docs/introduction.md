@@ -15,6 +15,13 @@ specification uses a combination of `HTTP` and the Lightning Network to create
 a seamless end-to-end payment+authentication flow for the next generation of
 paid APIs built on top of the Lightning Network.
 
+The L402 protocol is token-format agnostic: any authentication token that can
+commit to a payment hash may be used. Macaroons (HMAC-chain bearer credentials)
+are the RECOMMENDED token format due to their support for delegation,
+attenuation of capabilities, and stateless verification. See the
+[Macaroon Minting & Verification](macaroons.md) chapter for full details on the
+macaroon-based token format.
+
 The system described above isn't a fantasy. L402 is used _today_ in production
 to serve as an authentication+payment solution for services built on the
 Lightning Network. The reference implementation is
@@ -65,7 +72,7 @@ At this point, curious users may be wondering: How would such a scheme work?
 Are the payment and receipt steps atomic? Why can't a user just forge one of
 these "tickets"?
 
-## HTTP + Macaroons + Lightning = L402
+## HTTP + Tokens + Lightning = L402
 
 An L402 is essentially a ticket obtained over Lightning for a particular service
 or resource. The ticket itself _encodes_ what resource it's able to access. It
