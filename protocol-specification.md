@@ -242,7 +242,52 @@ Upon receiving a `WWW-Authenticate: L402` challenge:
 4. The client MUST re-issue the original HTTP request with the `Authorization`
    header attached.
 
-## 7. gRPC Protocol Flow
+## 7. Wallet and Payment Processor Requirements
+
+The protocol flows in Sections 6 and 8 specify obligations for the L402 server
+(the resource gatekeeper) and the L402 client (the entity constructing the
+`Authorization` header). The proof chain also depends on a third actor: the
+**wallet or payment processor** that settles the underlying Lightning invoice
+on the client's behalf and surfaces the resulting preimage `r` back to the
+client.
+
+In typical Lightning Network routing, `r` propagates to the client's wallet
+automatically through the HTLC settlement chain; no normative behavior on the
+wallet's part is required. However, when both the payee and payer are hosted
+by the same custodial Lightning service, the service may settle the payment
+internally — crediting the payee's account and debiting the payer's account
+without routing the payment over the Lightning Network. In this scenario, no
+HTLC chain forms, `r` is generated at invoice creation and held by the service
+throughout, and `r` is never propagated to the client by the underlying
+Lightning protocol.
+
+To preserve L402 compatibility regardless of settlement path:
+
+1. A Lightning wallet or payment processor MUST surface the payment preimage
+   `r` to the client for any settled invoice, regardless of whether settlement
+   occurred via HTLC routing or via internal accounting on a single custodial
+   service.
+
+2. A wallet or payment processor that omits `r` from the payment-confirmation
+   response for an internally-settled invoice SHOULD be considered
+   non-compliant with this specification for L402 authentication purposes,
+   since the client cannot construct a valid `Authorization` header without
+   `r`.
+
+3. A wallet or payment processor MUST NOT release the preimage `r` to the
+   client prior to settlement of the corresponding invoice. In standard
+   Lightning routing this is enforced by the HTLC protocol; in
+   internal-settlement implementations it MUST be enforced by the wallet or
+   payment processor's accounting logic. The L402 server's stateless
+   `H == sha256(r)` check (Section 6.1) assumes that possession of `r` by the
+   client implies the invoice has been settled.
+
+These requirements apply equally to the HTTP flow (Section 6) and the gRPC
+flow (Section 8). They impose no requirement on the underlying Lightning
+settlement path; they impose a requirement only on what the wallet or payment
+processor surfaces to the client after settlement.
+
+## 8. gRPC Protocol Flow
 
 gRPC is transmitted over HTTP/2 but uses special trailing headers for
 protocol-specific information. The
@@ -251,7 +296,7 @@ requires a status code of 200 in all responses. As a result, the L402 gRPC
 flow is modified to always return 200 OK at the HTTP level and instead convey
 the payment challenge via gRPC trailing headers.
 
-### 7.1. Server Flow
+### 8.1. Server Flow
 
 The server flow is identical to the HTTP flow (Section 6.1) with the following
 modifications:
@@ -296,7 +341,7 @@ The L402 proxy determines whether a request is gRPC by checking whether the
 `Content-Type` header begins with `application/grpc`. The proxy MUST be HTTP/2
 compatible, since gRPC clients expect an HTTP/2-speaking server.
 
-### 7.2. Client Flow
+### 8.2. Client Flow
 
 The gRPC client flow is identical to the HTTP flow (Section 6.2). Once the
 client has deserialized the proto and extracted the macaroon and invoice, it
@@ -307,7 +352,7 @@ Other gRPC headers and trailers are required as normal; see the
 [gRPC over HTTP2 specification](https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md)
 for details.
 
-## 8. Credential Reuse and Revocation
+## 9. Credential Reuse and Revocation
 
 L402 credentials are intended for reuse. A client SHOULD cache and reuse its
 credential until the server rejects it with a new 402 challenge. An L402 can
@@ -324,9 +369,9 @@ Possible revocation conditions include:
 When a credential is revoked, the server issues a fresh 402 challenge and the
 client repeats the payment flow.
 
-## 9. Security Considerations
+## 10. Security Considerations
 
-### 9.1. Transport Security
+### 10.1. Transport Security
 
 L402 credentials are bearer tokens. The macaroon and preimage are transmitted
 as cleartext in HTTP headers and MUST be protected by TLS. Implementations
@@ -336,14 +381,14 @@ TLS 1.3 ([RFC 8446](https://tools.ietf.org/html/rfc8446)) is RECOMMENDED.
 Servers MUST NOT issue L402 challenges over unencrypted HTTP. Clients MUST NOT
 send L402 credentials over unencrypted HTTP.
 
-### 9.2. Credential Interception
+### 10.2. Credential Interception
 
 If a client's L402 is intercepted by an attacker (e.g., via a compromised TLS
 termination point), the attacker can reuse the credential. The L402 proxy would
 not be able to distinguish this usage as illicit, since the credential is a
 bearer token.
 
-### 9.3. Spoofing by Counterfeit Servers
+### 10.3. Spoofing by Counterfeit Servers
 
 L402 is vulnerable to spoofing if a client connects to a malicious server
 (e.g., by mistyping a URL). The malicious server could store the client's L402
@@ -362,21 +407,21 @@ after a network change; a TLS client cert fingerprint requires the client to
 maintain a stable key pair. Deployments SHOULD choose binding predicates
 appropriate to their threat model.
 
-### 9.4. Replay Protection
+### 10.4. Replay Protection
 
 The macaroon itself does not inherently prevent replay. Replay protection comes
 from the caveat and revocation mechanisms: expiry caveats, usage-count tracking,
 and root key deletion all limit the window in which a stolen credential is
 useful.
 
-### 9.5. Amount Verification
+### 10.5. Amount Verification
 
 Clients MUST verify that the invoice amount is reasonable for the requested
 resource before paying. Malicious servers could request arbitrarily large
 payments. Client implementations SHOULD enforce a configurable maximum payment
 threshold.
 
-## 10. Backwards Compatibility
+## 11. Backwards Compatibility
 
 The L402 protocol was formerly known as LSAT. To preserve backwards
 compatibility with deployed clients and servers:
@@ -387,7 +432,7 @@ compatibility with deployed clients and servers:
 - Clients and servers MUST accept both `LSAT` and `L402` in `Authorization`
   headers.
 
-## 11. References
+## 12. References
 
 - [RFC 2119: Key words for use in RFCs](https://tools.ietf.org/html/rfc2119)
 - [RFC 4648: Base Encodings](https://tools.ietf.org/html/rfc4648)
