@@ -76,6 +76,7 @@ that work over open payment rails.
 * [Aperture](https://github.com/lightninglabs/aperture): gRPC/HTTP authentication reverse proxy using L402
 * [lsat-js](https://github.com/Tierion/lsat-js): JavaScript utility library for working with L402 credentials
 * [boltwall](https://github.com/tierion/boltwall): Node.js middleware-based authentication using L402
+* [l402-kit](https://github.com/ShinyDapps/l402-kit): Multi-language SDK (TypeScript, Python, Go, Rust) for adding L402 paywalls to any API in 3 lines of code
 
 ## External Links
 
