@@ -62,6 +62,7 @@ that work over open payment rails.
 ## Specification
 
 * [Protocol Specification](protocol-specification.md): HTTP and gRPC protocol details, formal definitions
+* [Discovery Specification](discovery-spec.md): Service discovery, pricing manifests, and in-protocol quoting
 * [Macaroon Technical Specification](macaroon-spec.md): Detailed create/verify/attenuate implementation guide
 * [Agent Specification](agent-spec.md): Complete protocol in ~560 tokens for AI agent integration
 
