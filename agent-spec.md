@@ -55,6 +55,88 @@ Key=value strings. Three standard types:
 
 Each additional caveat of same key MUST restrict further (never widen).
 
+## Discovery (Optional)
+
+Learn a provider's services, prices, and caveat vocabulary *before* paying.
+Enables dynamic pricing and negotiation. Adds no new verification: a quote is an
+ordinary L402 challenge minted for a bundle you chose.
+
+**Manifest** (free, never 402):
+```
+GET /.well-known/l402.json        # or Link: <...>; rel="l402-manifest"
+```
+
+Two interchangeable profiles, same vocabulary:
+- Bespoke `l402.json` (compact catalog).
+- OpenAPI 3.1 with `x-l402-*` extensions (self-describing: full API + prices in
+  one fetch).
+
+Manifest shape:
+```json
+{
+  "version": "1.0",
+  "provider": { "name": "...", "node_pubkey": "..." },
+  "currencies": ["msat"],
+  "quote_endpoint": "/l402/quote",
+  "openapi": "/openapi.json",
+  "services": [{
+    "name": "weather",
+    "tiers": [{ "tier": 0 }, { "tier": 1 }],
+    "capabilities": ["forecast"],
+    "resources": [{
+      "path": "/v1/forecast", "method": "GET", "capability": "forecast",
+      "pricing": { "model": "formula", "base_msat": 1000,
+        "components": [{ "constraint": "forecast_monthly_requests",
+                         "price_msat_per_unit": 10, "unit": 1 }] },
+      "constraints": { "forecast_monthly_requests": { "type": "integer", "max": 1000000 } }
+    }]
+  }],
+  "caveats": { "services": { "type": "service_list", "attenuation": "subset" } }
+}
+```
+
+Pricing `model`:
+- `fixed`: constant `price_msat`; pay directly, no quote needed.
+- `formula`: `base_msat + Σ price_msat_per_unit * ceil(value/unit)`; client computes locally.
+- `dynamic`: not in manifest; MUST call `quote_endpoint`.
+
+**Quote endpoint** (dynamic pricing + negotiation):
+```
+POST /l402/quote
+  { "service": "weather", "tier": 1, "capabilities": ["forecast"],
+    "constraints": { "forecast_monthly_requests": 100000 },
+    "max_price_msat": 2000000, "optimize": "price", "token_id": "<hex?>" }
+->
+  { "price_msat": 1001000, "quote_expiry": <unix>,
+    "macaroon": "<base64>", "invoice": "<bolt11>",
+    "alternatives": [ { "tier": 0, "price_msat": 501000, "constraints": {...} } ] }
+```
+`macaroon`+`invoice` = standard challenge. Pay invoice, send
+`Authorization: L402 macaroon:preimage` as usual. Quote firm until `quote_expiry`
+(provider sets invoice expiry to match; the credential itself only expires if the
+bundle has a `valid_until` caveat). `token_id` enables upgrade / returning-customer
+pricing. `max_price_msat`/`optimize` steer the `alternatives`.
+
+**Bundle -> caveats** (provider mints these; you reconstruct to verify):
+```
+services=<service>:<tier>
+<service>_capabilities=<cap1,cap2,...>     # omit = all caps
+<constraint_key>=<value>                   # one per constraint, key used verbatim
+```
+
+OpenAPI extension keys: `x-l402-{version,provider,caveats}` at root;
+`x-l402-{service,capability,tiers,pricing,constraints}` per operation.
+
+Errors: non-200 with `{ "error": { "code", "message", "field" } }`. Branch on
+`code` (`unknown_service`, `constraint_out_of_bounds`, `unsatisfiable_budget`,
+`rate_limited`, `unpriceable`, ...). Quote endpoint absent = 404.
+
+Client rules:
+- Manifest/formula prices are advisory. The invoice `msat` amount is authoritative; apply your max-payment threshold to it.
+- Before paying a quote: decode the `macaroon`, confirm its `payment_hash` matches the `invoice`, and confirm its caveats match your requested bundle (no weaker). Mismatch -> do not pay.
+- If `node_pubkey` present, verify the invoice is payable to it.
+- No manifest (404, no `Link`)? Fall back to the reactive 402 flow.
+
 ## gRPC Variant
 
 Same auth scheme. Differences:
